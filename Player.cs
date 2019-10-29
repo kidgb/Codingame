@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics.CodeAnalysis;
+using System.Net.Sockets;
 using System.Numerics;
 using System.Xml;
 
@@ -63,22 +64,23 @@ class Player
             var dotProduct = Vector2.Dot(engine.Orientation, Vector2.Normalize(toTarget));
 
             var distanceToTarget = toTarget.Length();
-
+            
+            
             if (dotProduct < 0)
             {
                 thrust = 0;
             }
             else if (dotProduct < 0.2)
             {
-                thrust = 5;
+                thrust = 10;
             }
             else
             {
-                if (distanceToTarget >= 6000 && dotProduct > 0.9)
+                if (distanceToTarget >= 6000 && dotProduct > 0.95)
                 {
                     boost = true;
                 }
-                else if (distanceToTarget >= 3000)
+                else if (distanceToTarget >= 2000)
                 {
                     thrust = 100;
                 }
@@ -86,7 +88,7 @@ class Player
                 {
                     if (engine.Velocity.Length() < 250)
                     {
-                        thrust = 80;
+                        thrust = 100;
                     }
                     else
                     {
@@ -95,11 +97,9 @@ class Player
                 }
             }
 
-            Console.Error.WriteLine(distanceToTarget);
-
             if (boost)
             {
-                Engine.Output(target.X, target.Y);
+                Engine.Output(target.X, target.Y, OutputType.Boost);
             }
             else
             {
@@ -110,13 +110,23 @@ class Player
 
     public class Engine
     {
-        public Vector2 Position { get; private set; }
-        public Vector2 Orientation { get; private set; }
         public Vector2 CheckpointPosition { get; private set; }
-        public Vector2 EnemyPosition { get; private set; }
 
+        public Vector2 FromExpectedPositionToEnemyExpectedPosition => ExpectedPosition - ExpectedEnemyPosition;
+
+        public Vector2 ExpectedEnemyToCheckpoint => CheckpointPosition - ExpectedEnemyPosition;
+        public Vector2 EnemyToCheckpoint => CheckpointPosition - EnemyPosition;
+        public Vector2 ExpectedEnemyPosition => EnemyPosition + EnemyVelocity;
+        private Vector2 LastEnemyPosition { get; set; }
+        public Vector2 EnemyPosition { get; private set; }
+        public Vector2 EnemyVelocity { get; private set; }
+
+        public Vector2 ExpectedToCheckpoint => CheckpointPosition - ExpectedPosition;
+        public Vector2 ExpectedPosition => Position + Velocity;
+        public Vector2 Position { get; private set; }
         private Vector2 LastPosition { get; set; }
         public Vector2 Velocity { get; private set; }
+        public Vector2 Orientation { get; private set; }
 
         public Vector2 ToCheckpoint { get; private set; }
 
@@ -129,7 +139,7 @@ class Player
         {
             Position = Vector2.Zero;
             CheckpointPosition = Vector2.Zero;
-            EnemyPosition = Vector2.Zero; 
+            EnemyPosition = Vector2.Zero;
             Velocity = Vector2.Zero;
         }
 
@@ -141,18 +151,15 @@ class Player
             var y = int.Parse(inputs[1]);
 
             LastPosition = Position;
-            
             Position = new Vector2(x, y);
-            var nextCheckpointX = int.Parse(inputs[2]);
-            var nextCheckpointY = int.Parse(inputs[3]);
-
             if (LastPosition == Vector2.Zero)
             {
                 LastPosition = Position;
             }
-
             Velocity = Position - LastPosition;
 
+            var nextCheckpointX = int.Parse(inputs[2]);
+            var nextCheckpointY = int.Parse(inputs[3]);
             CheckpointPosition = new Vector2(nextCheckpointX, nextCheckpointY);
             var nextCheckpointAngle = int.Parse(inputs[5]);
 
@@ -165,7 +172,13 @@ class Player
             var opponentX = int.Parse(inputs[0]);
             var opponentY = int.Parse(inputs[1]);
 
+            LastEnemyPosition = EnemyPosition;
             EnemyPosition = new Vector2(opponentX, opponentY);
+            if (LastEnemyPosition == Vector2.Zero)
+            {
+                LastEnemyPosition = EnemyPosition;
+            }
+            EnemyVelocity = EnemyPosition - LastEnemyPosition;
 
             var toCheckpointDirection = Vector2.Normalize(ToCheckpoint);
             var g1 = Rotate(toCheckpointDirection, -Math.PI / 2) * 150;
@@ -177,7 +190,7 @@ class Player
             ToG2 = G2 - Position;
         }
 
-        public static void Output(float targetX, float targetY, OutputType outputType = OutputType.Boost)
+        public static void Output(float targetX, float targetY, OutputType outputType)
         {
             var x = (int)Math.Round(targetX);
             var y = (int)Math.Round(targetY);
@@ -186,6 +199,9 @@ class Player
             {
                 case OutputType.Boost:
                     Console.WriteLine($"{x} {y} BOOST");
+                    break;
+                case OutputType.Shield:
+                    Console.WriteLine($"{x} {y} SHIELD");
                     break;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(outputType), outputType, null);
@@ -223,6 +239,7 @@ class Player
 
     public enum OutputType
     {
-        Boost
+        Boost,
+        Shield
     }
 }
